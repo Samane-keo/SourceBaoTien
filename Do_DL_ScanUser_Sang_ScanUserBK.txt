@@ -1,0 +1,89 @@
+USE [msdb]
+GO
+
+/****** Object:  Job [Do_DL_ScanUser_Sang_ScanUserBK]    Script Date: 12/03/2019 15:49:29 ******/
+BEGIN TRANSACTION
+DECLARE @ReturnCode INT
+SELECT @ReturnCode = 0
+/****** Object:  JobCategory [[Uncategorized (Local)]]    Script Date: 12/03/2019 15:49:29 ******/
+IF NOT EXISTS (SELECT name FROM msdb.dbo.syscategories WHERE name=N'[Uncategorized (Local)]' AND category_class=1)
+BEGIN
+EXEC @ReturnCode = msdb.dbo.sp_add_category @class=N'JOB', @type=N'LOCAL', @name=N'[Uncategorized (Local)]'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+
+END
+
+DECLARE @jobId BINARY(16)
+EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N'Do_DL_ScanUser_Sang_ScanUserBK', 
+		@enabled=1, 
+		@notify_level_eventlog=0, 
+		@notify_level_email=0, 
+		@notify_level_netsend=0, 
+		@notify_level_page=0, 
+		@delete_level=0, 
+		@description=N'Chay do san luong tu tk_scansanluong_user qua bang tk_scansanluong_user_bk.', 
+		@category_name=N'[Uncategorized (Local)]', 
+		@owner_login_name=N'sa', @job_id = @jobId OUTPUT
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+/****** Object:  Step [Chay_BKUser]    Script Date: 12/03/2019 15:49:29 ******/
+EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'Chay_BKUser', 
+		@step_id=1, 
+		@cmdexec_success_code=0, 
+		@on_success_action=1, 
+		@on_success_step_id=0, 
+		@on_fail_action=2, 
+		@on_fail_step_id=0, 
+		@retry_attempts=0, 
+		@retry_interval=0, 
+		@os_run_priority=0, @subsystem=N'TSQL', 
+		@command=N'DECLARE @ngaythang1 AS DATETIME 
+SET @ngaythang1=(SELECT DATEADD(DAY,-5,DATEADD(DAY,1,GETDATE())))
+
+DELETE FROM TK_ScanSanLuong_User WHERE SLTH=0 AND CONVERT(VARCHAR,Ngay,103)=CONVERT(VARCHAR,@ngaythang1,103) 
+
+DECLARE @ngaythang AS DATETIME 
+SET @ngaythang=(SELECT DATEADD(DAY,-15,DATEADD(DAY,-1,GETDATE())))
+INSERT INTO tk_Scansanluong_User_BK (MaSP, SoLSX, Mau, CoSo, SLKH, SLTH, SLTD, Ngay, MaPX, MaNV, STT)
+SELECT masp,SoLSX,Mau, CoSo, SLKH, SLTH, SLTD, Ngay, MaPX, MaNV, STT
+  FROM tk_scansanluong_user WHERE CONVERT(VARCHAR,Ngay,103)=CONVERT(VARCHAR,@ngaythang,103)
+
+delete FROM tk_scansanluong_user  WHERE CONVERT(VARCHAR,Ngay,103)=CONVERT(VARCHAR,@ngaythang,103)
+
+
+DECLARE @ngay2 AS DATETIME 
+SET @ngay2=(SELECT DATEADD(DAY,-15,DATEADD(DAY,-1,GETDATE())))
+
+INSERT INTO TK_ScanSanLuong_BK(MaSP,SoLSX,Mau,CoSo,SLKH,SLTH,SLTD,Ngay,MaPX,MaNV,STT,My)
+SELECT masp,SoLSX,Mau, CoSo, SLKH, SLTH, SLTD, Ngay, MaPX, MaNV, STT,My
+FROM tk_scansanluong WHERE CONVERT(VARCHAR,Ngay,103)=CONVERT(VARCHAR,@ngay2,103)
+
+DELETE tk_scansanluong  WHERE CONVERT(VARCHAR,Ngay,103)=CONVERT(VARCHAR,@ngay2,103)', 
+		@database_name=N'KHKD', 
+		@flags=0
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_update_job @job_id = @jobId, @start_step_id = 1
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule @job_id=@jobId, @name=N'Chay_DoScanUser_UserBK', 
+		@enabled=1, 
+		@freq_type=4, 
+		@freq_interval=1, 
+		@freq_subday_type=1, 
+		@freq_subday_interval=0, 
+		@freq_relative_interval=0, 
+		@freq_recurrence_factor=0, 
+		@active_start_date=20151128, 
+		@active_end_date=99991231, 
+		@active_start_time=30000, 
+		@active_end_time=235959, 
+		@schedule_uid=N'02516d9a-1bd3-45db-930f-3f0ffaf72d77'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = N'(local)'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+COMMIT TRANSACTION
+GOTO EndSave
+QuitWithRollback:
+    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
+EndSave:
+
+GO
+

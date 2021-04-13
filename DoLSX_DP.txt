@@ -1,0 +1,96 @@
+USE [msdb]
+GO
+
+/****** Object:  Job [DoLSX_DP]    Script Date: 12/03/2019 15:49:49 ******/
+BEGIN TRANSACTION
+DECLARE @ReturnCode INT
+SELECT @ReturnCode = 0
+/****** Object:  JobCategory [[Uncategorized (Local)]]    Script Date: 12/03/2019 15:49:49 ******/
+IF NOT EXISTS (SELECT name FROM msdb.dbo.syscategories WHERE name=N'[Uncategorized (Local)]' AND category_class=1)
+BEGIN
+EXEC @ReturnCode = msdb.dbo.sp_add_category @class=N'JOB', @type=N'LOCAL', @name=N'[Uncategorized (Local)]'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+
+END
+
+DECLARE @jobId BINARY(16)
+EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N'DoLSX_DP', 
+		@enabled=1, 
+		@notify_level_eventlog=0, 
+		@notify_level_email=0, 
+		@notify_level_netsend=0, 
+		@notify_level_page=0, 
+		@delete_level=0, 
+		@description=N'No description available.', 
+		@category_name=N'[Uncategorized (Local)]', 
+		@owner_login_name=N'sa', @job_id = @jobId OUTPUT
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+/****** Object:  Step [DoLSX_DP]    Script Date: 12/03/2019 15:49:49 ******/
+EXEC @ReturnCode = msdb.dbo.sp_add_jobstep @job_id=@jobId, @step_name=N'DoLSX_DP', 
+		@step_id=1, 
+		@cmdexec_success_code=0, 
+		@on_success_action=1, 
+		@on_success_step_id=0, 
+		@on_fail_action=2, 
+		@on_fail_step_id=0, 
+		@retry_attempts=0, 
+		@retry_interval=0, 
+		@os_run_priority=0, @subsystem=N'TSQL', 
+		@command=N'delete from DP_LSX_H          
+
+INSERT INTO DP_LSX_H([SoLSX], [SoSOA], [MaKH], [SoTN], [SoDDH], [NgayGH], [NgayTN], [NgayDP], [NgayPH], [NgayVTDU], [NgayLap], [NgayBBTN], [NgayKIEM], [NgayNCVT], [NgayDuPhong], [GhiChu], [PhanBo], [BTP], [ChoSX], [MA_DOI], [LYDO_DOI], [CHUYENDH], [SoHD],                 
+ [NgayDuKien_BBTN], [LanDC], [SoPDC], [NgayTNMD], [NgayPHMD], [NgayCapNhat], [NgayPhatSinh], [DHChenNgang], [User_DonDoi], [User_CapNhat_BCLA], [LanDC_NGH], [Chon], [NgayTNTT], [NgayPHTT], [GhiChu_DDH])          
+select [SoLSX], [SoSOA], [MaKH], [SoTN], [SoDDH], [NgayGH], [NgayTN], [NgayDP], [NgayPH], [NgayVTDU], [NgayLap], [NgayBBTN],           
+[NgayKIEM], [NgayNCVT], [NgayDuPhong], [GhiChu], [PhanBo], [BTP], [ChoSX], [MA_DOI], [LYDO_DOI], [CHUYENDH], [SoHD], [NgayDuKien_BBTN],           
+[LanDC], [SoPDC], [NgayTNMD], [NgayPHMD], [NgayCapNhat], [NgayPhatSinh], [DHChenNgang], [User_DonDoi], [User_CapNhat_BCLA], [LanDC_NGH],          
+ [Chon], [NgayTNTT], [NgayPHTT], [GhiChu_DDH]           
+from server_hp.KHKD.dbo.DP_LSX_H 
+Where  Left(SoLSX,2) IN(''DN'',''DE'',''DG'',''DB'')  and YEAR(ngaygh) >= 2016        
+
+
+delete from DP_LSX_L          
+
+INSERT INTO DP_LSX_L( [SoLSX], [ChiNhanh], [MaSP], [MA_MAU], [MSM], [LOAI_BTP], [MAU_BTP], [QUICACH_BTP], [CoSoID], [SoLuong], [SoSOA], [SoDH], [SoDHK], [Moi], [MauKhach], [CSDanTem], [MASPK], [user_MaSP], [Ngayphatsinh], [DG_BTPXT], [DVT])          
+select [SoLSX], [ChiNhanh], [MaSP], [MA_MAU], [MSM], [LOAI_BTP], [MAU_BTP], [QUICACH_BTP], [CoSoID], [SoLuong], [SoSOA], [SoDH], [SoDHK],          
+ [Moi], [MauKhach], [CSDanTem], [MASPK], [user_MaSP], [Ngayphatsinh], [DG_BTPXT], [DVT]           
+from server_hp.KHKD.dbo.DP_LSX_L          
+Where Left(SoLSX,2) IN(''DN'',''DE'',''DG'',''DB'') and YEAR(ngayphatsinh) >= 2016
+
+
+update b set b.makh=a.makh
+from dp_lsx_h a inner join tk_kehoachtuan b on a.solsx=b.solsx
+where a.solsx<>b.solsx
+
+UPDATE B
+SET B.TUANSX=A.TTN,B.NgayGH=A.NgayGH
+FROM DP_LSX_H A INNER JOIN TK_KEHOACHTUAN B ON A.SOLSX=B.SOLSX
+WHERE A.TTN<>B.TUANSX', 
+		@database_name=N'KHKD', 
+		@flags=0
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_update_job @job_id = @jobId, @start_step_id = 1
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobschedule @job_id=@jobId, @name=N'DoLSX_DP', 
+		@enabled=1, 
+		@freq_type=4, 
+		@freq_interval=1, 
+		@freq_subday_type=1, 
+		@freq_subday_interval=0, 
+		@freq_relative_interval=0, 
+		@freq_recurrence_factor=0, 
+		@active_start_date=20160907, 
+		@active_end_date=99991231, 
+		@active_start_time=22500, 
+		@active_end_time=235959, 
+		@schedule_uid=N'e74d1bad-ea79-4f63-98ca-3dd4a8772797'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+EXEC @ReturnCode = msdb.dbo.sp_add_jobserver @job_id = @jobId, @server_name = N'(local)'
+IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
+COMMIT TRANSACTION
+GOTO EndSave
+QuitWithRollback:
+    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION
+EndSave:
+
+GO
+
